@@ -125,6 +125,28 @@ This starts both the backend (port 8000) and frontend (port 5173).
 
 Open [http://localhost:5173](http://localhost:5173) in your browser.
 
+## Versioning
+
+This project uses Git tags for versioning. To roll back to a previous version:
+
+```bash
+# List all tags
+git tag
+
+# Check out a specific version
+git checkout v1.0.0
+```
+
+To create a new tag:
+```bash
+git tag -a v1.1.0 -m "Description of this version"
+git push origin v1.1.0
+```
+
+| Version | Description |
+|---------|-------------|
+| v1.0.0 | Initial release with rotated PDF support |
+
 ## API
 
 The backend API is available at `http://localhost:8000/api/pdf`.
