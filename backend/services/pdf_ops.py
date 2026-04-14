@@ -240,6 +240,11 @@ def get_page_elements(file_id: str, page_index: int) -> dict:
             for span in line.get("spans", []):
                 if not span["text"].strip():
                     continue
+                # Skip rotated text spans — their bounding boxes don't map
+                # correctly to canvas coordinates, so they can't be edited.
+                dir_x, dir_y = span.get("dir", (1, 0))
+                if abs(dir_x) < 0.9:  # not approximately horizontal
+                    continue
                 bbox = span["bbox"]  # (x0, y0, x1, y1) in PDF points
                 # color is packed int RGB
                 c = span.get("color", 0)

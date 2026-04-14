@@ -209,6 +209,7 @@ export function PageEditor({ fileId, pageIndex: initPage, totalPages, onSave, on
   const pdfScaleRef = useRef(RENDER_SCALE);
   const [busy, setBusy]           = useState(false);
   const [loadingPage, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [savedToast, setSavedToast] = useState(false);
 
   const selected = elements.find((e) => e.id === selectedId) ?? null;
@@ -233,6 +234,7 @@ export function PageEditor({ fileId, pageIndex: initPage, totalPages, onSave, on
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
+    setLoadError(null);
     setElements([]);
     setSelectedId(null);
     setTextBox(null);
@@ -242,7 +244,7 @@ export function PageEditor({ fileId, pageIndex: initPage, totalPages, onSave, on
       const img = new Image();
       await new Promise<void>((resolve, reject) => {
         img.onload = () => resolve();
-        img.onerror = reject;
+        img.onerror = () => reject(new Error("Failed to render page background. The PDF may contain unsupported content."));
         img.src = noTextRenderURL(currentFileId, pageIndex, RENDER_SCALE);
       });
       if (cancelled) return;
@@ -266,7 +268,7 @@ export function PageEditor({ fileId, pageIndex: initPage, totalPages, onSave, on
           x:            e.x * s,
           y:            (e.y + e.h) * s,   // baseline = bottom of bbox
           text:         e.text,
-          fontSize:     Math.max(e.h * s, 8),
+          fontSize:     Math.max(e.fontSize * s, 8),
           color:        e.color ?? "#000000",
           fromPdf:      true,
           originalBbox: { x: e.x, y: e.y, w: e.w, h: e.h },
@@ -274,7 +276,12 @@ export function PageEditor({ fileId, pageIndex: initPage, totalPages, onSave, on
         setElements(els);
       } catch (_) { /* non-fatal — editor still works for new additions */ }
     }
-    load();
+    load().catch((err) => {
+      if (!cancelled) {
+        setLoading(false);
+        setLoadError(String(err));
+      }
+    });
     return () => { cancelled = true; };
   }, [currentFileId, pageIndex]);
 
@@ -598,7 +605,8 @@ export function PageEditor({ fileId, pageIndex: initPage, totalPages, onSave, on
 
         {/* ── Canvas area ── */}
         <div className="canvas-scroll">
-          {loadingPage && <div className="canvas-loading">Rendering page…</div>}
+          {loadingPage && !loadError && <div className="canvas-loading">Rendering page…</div>}
+          {loadError && <div className="canvas-loading" style={{ color: "#dc2626" }}>{loadError}</div>}
           <div className="canvas-wrap" style={{ opacity: loadingPage ? 0 : 1 }}>
             <canvas ref={bgRef}   className="bg-canvas" />
             <canvas
