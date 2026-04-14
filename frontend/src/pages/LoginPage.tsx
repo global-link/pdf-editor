@@ -1,10 +1,15 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 
 export function LoginPage() {
-  const { signIn, signInWithGoogle } = useAuth();
+  const { session, signIn, signInWithGoogle } = useAuth();
   const navigate = useNavigate();
+
+  // Redirect if session appears (handles OAuth callback landing on /login)
+  useEffect(() => {
+    if (session) navigate("/", { replace: true });
+  }, [session, navigate]);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");

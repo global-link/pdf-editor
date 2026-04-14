@@ -6,6 +6,7 @@ import {
   type ReactNode,
 } from "react";
 import { oidcClient, type Session } from "../auth/oidcClient";
+import { supabase } from "../auth/supabaseClient";
 import { getProfile, type Profile } from "../api/auth";
 
 interface AuthContextValue {
@@ -36,23 +37,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
+    // getSession() handles the OAuth PKCE code exchange (detects ?code= in the URL).
+    // We use this for the initial load so the code is exchanged before any navigation.
     oidcClient.getSession().then(async (s) => {
       setSession(s);
       if (s) await fetchProfile();
       setLoading(false);
     });
 
-    const unsubscribe = oidcClient.onAuthStateChange(async (s) => {
-      setSession(s);
-      if (s) {
+    // onAuthStateChange handles subsequent changes (sign in, sign out, token refresh).
+    // We skip INITIAL_SESSION here because getSession() above already covers it.
+    const { data } = supabase.auth.onAuthStateChange(async (event, s) => {
+      if (event === "INITIAL_SESSION") return;
+      const mapped: Session | null = s
+        ? { access_token: s.access_token, user: { id: s.user.id, email: s.user.email } }
+        : null;
+      setSession(mapped);
+      if (mapped) {
         await fetchProfile();
       } else {
         setProfile(null);
       }
-      setLoading(false);
     });
 
-    return unsubscribe;
+    return () => data.subscription.unsubscribe();
   }, []);
 
   return (
