@@ -138,8 +138,12 @@ def download(file_id: str):
 async def render_no_text(file_id: str, page: int, scale: float = 1.8):
     try:
         data = pdf_ops.render_page_no_text(file_id, page, scale)
-    except Exception as e:
-        raise HTTPException(404, str(e))
+    except Exception:
+        # Fall back to normal rendering so the editor still loads
+        try:
+            data = pdf_ops.render_page_thumbnail(file_id, page, dpi=int(72 * scale))
+        except Exception as e:
+            raise HTTPException(404, str(e))
     return Response(content=data, media_type="image/png")
 
 

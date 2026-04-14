@@ -180,40 +180,51 @@ def render_page_no_text(file_id: str, page_index: int, scale: float = 1.8) -> by
     sample_mat   = fitz.Matrix(sample_scale, sample_scale)
     sample_pix   = page.get_pixmap(matrix=sample_mat, alpha=False)
 
-    # --- Collect all text block rects ---
-    text_rects = [fitz.Rect(b[:4]) for b in page.get_text("blocks") if b[6] == 0]
+    # --- Collect all text block rects (skip empty/degenerate rects) ---
+    text_rects = []
+    for b in page.get_text("blocks"):
+        if b[6] != 0:
+            continue
+        r = fitz.Rect(b[:4])
+        if r.is_empty or r.is_infinite:
+            continue
+        text_rects.append(r)
 
     # For each text block, draw a filled rect using the median bg colour sampled
     # from the rendered image so that the background shows through naturally.
+    W, H = sample_pix.width, sample_pix.height
     for rect in text_rects:
-        # Sample pixels from OUTSIDE the text rect to get the true background colour.
-        W, H = sample_pix.width, sample_pix.height
-        px0 = int(rect.x0 * sample_scale)
-        py0 = int(rect.y0 * sample_scale)
-        px1 = int(rect.x1 * sample_scale)
-        py1 = int(rect.y1 * sample_scale)
-        bg_samples: list[tuple[int, int, int]] = []
-        if py0 - 2 >= 0:
-            for sx in range(max(0, px0), min(W, px1 + 1), max(1, (px1 - px0) // 8 + 1)):
-                bg_samples.append(sample_pix.pixel(sx, py0 - 2))
-        if py1 + 2 < H:
-            for sx in range(max(0, px0), min(W, px1 + 1), max(1, (px1 - px0) // 8 + 1)):
-                bg_samples.append(sample_pix.pixel(sx, py1 + 2))
-        if px0 - 2 >= 0:
-            for sy in range(max(0, py0), min(H, py1 + 1), max(1, (py1 - py0) // 8 + 1)):
-                bg_samples.append(sample_pix.pixel(px0 - 2, sy))
-        if px1 + 2 < W:
-            for sy in range(max(0, py0), min(H, py1 + 1), max(1, (py1 - py0) // 8 + 1)):
-                bg_samples.append(sample_pix.pixel(px1 + 2, sy))
-        if not bg_samples:
-            for sx, sy in [(px0, py0), (px1, py0), (px0, py1), (px1, py1)]:
-                bg_samples.append(sample_pix.pixel(max(0, min(sx, W-1)), max(0, min(sy, H-1))))
-        bg_samples.sort()
-        mid = bg_samples[len(bg_samples) // 2]
-        fill_color = (mid[0] / 255, mid[1] / 255, mid[2] / 255)
-        # Draw a solid rectangle over the text block in the PDF
-        padded = fitz.Rect(rect.x0 - 1, rect.y0 - 1, rect.x1 + 1, rect.y1 + 1)
-        page.draw_rect(padded, color=fill_color, fill=fill_color, width=0)
+        try:
+            # Sample pixels from OUTSIDE the text rect to get the true background colour.
+            px0 = max(0, min(int(rect.x0 * sample_scale), W - 1))
+            py0 = max(0, min(int(rect.y0 * sample_scale), H - 1))
+            px1 = max(0, min(int(rect.x1 * sample_scale), W - 1))
+            py1 = max(0, min(int(rect.y1 * sample_scale), H - 1))
+            bg_samples: list[tuple] = []
+            if py0 - 2 >= 0:
+                for sx in range(px0, min(W, px1 + 1), max(1, (px1 - px0) // 8 + 1)):
+                    bg_samples.append(sample_pix.pixel(sx, py0 - 2))
+            if py1 + 2 < H:
+                for sx in range(px0, min(W, px1 + 1), max(1, (px1 - px0) // 8 + 1)):
+                    bg_samples.append(sample_pix.pixel(sx, py1 + 2))
+            if px0 - 2 >= 0:
+                for sy in range(py0, min(H, py1 + 1), max(1, (py1 - py0) // 8 + 1)):
+                    bg_samples.append(sample_pix.pixel(px0 - 2, sy))
+            if px1 + 2 < W:
+                for sy in range(py0, min(H, py1 + 1), max(1, (py1 - py0) // 8 + 1)):
+                    bg_samples.append(sample_pix.pixel(px1 + 2, sy))
+            if not bg_samples:
+                for sx, sy in [(px0, py0), (px1, py0), (px0, py1), (px1, py1)]:
+                    bg_samples.append(sample_pix.pixel(sx, sy))
+            bg_samples.sort()
+            mid = bg_samples[len(bg_samples) // 2]
+            fill_color = (mid[0] / 255, mid[1] / 255, mid[2] / 255)
+            # Draw a solid rectangle over the text block in the PDF
+            padded = fitz.Rect(rect.x0 - 1, rect.y0 - 1, rect.x1 + 1, rect.y1 + 1)
+            page.draw_rect(padded, color=fill_color, fill=fill_color, width=0)
+        except Exception:
+            # Skip any block that fails — rest of the page still renders correctly
+            continue
 
     # --- Pass 2: render the modified page (text now hidden under colour rects) ---
     mat = fitz.Matrix(scale, scale)
