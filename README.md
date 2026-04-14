@@ -225,3 +225,5 @@ git push origin v1.2.0
 |---------|-------------|
 | v1.0.0 | Initial release with rotated PDF support |
 | v1.1.0 | User authentication via Supabase (email/password + Google OAuth) |
+| v1.2.0 | User profiles and onboarding state (Supabase Postgres + service role API) |
+| v1.2.1 | Fix Google OAuth callback flow (implicit + PKCE, trigger exception handler) |
