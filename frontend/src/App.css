@@ -211,6 +211,81 @@ body {
 }
 .edit-btn:hover { background: #dbeafe; }
 
+/* ── Auth pages ───────────────────────────────────────────────────────────── */
+.auth-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f4f5f7;
+}
+
+.auth-card {
+  background: #fff;
+  border-radius: 12px;
+  padding: 40px;
+  width: 100%;
+  max-width: 400px;
+  box-shadow: 0 2px 16px rgba(0, 0, 0, 0.08);
+}
+
+.auth-card h1 { font-size: 1.5rem; font-weight: 700; color: #e53e3e; margin-bottom: 8px; }
+.auth-card .subtitle { color: #666; font-size: 0.9rem; margin-bottom: 24px; }
+
+.auth-form { display: flex; flex-direction: column; gap: 16px; }
+
+.form-field { display: flex; flex-direction: column; gap: 4px; }
+.form-field label { font-size: 0.85rem; font-weight: 500; color: #444; }
+.form-field input {
+  padding: 10px 12px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  font-size: 0.95rem;
+  outline: none;
+  font-family: inherit;
+  transition: border-color 0.2s;
+}
+.form-field input:focus { border-color: #e53e3e; }
+
+.auth-error {
+  background: #fff5f5; border: 1px solid #fed7d7;
+  color: #c53030; padding: 10px 12px; border-radius: 6px; font-size: 0.85rem;
+  margin-bottom: 4px;
+}
+.auth-success {
+  background: #f0fff4; border: 1px solid #9ae6b4;
+  color: #276749; padding: 10px 12px; border-radius: 6px; font-size: 0.85rem;
+  margin-bottom: 4px;
+}
+
+.auth-divider {
+  display: flex; align-items: center; gap: 12px;
+  color: #aaa; font-size: 0.8rem; margin: 4px 0;
+}
+.auth-divider::before, .auth-divider::after {
+  content: ""; flex: 1; height: 1px; background: #e0e0e0;
+}
+
+.auth-footer { text-align: center; margin-top: 16px; font-size: 0.85rem; color: #666; }
+.auth-footer a { color: #e53e3e; text-decoration: none; font-weight: 500; }
+.auth-footer a:hover { text-decoration: underline; }
+
+.btn.google {
+  background: #fff; border-color: #ccc;
+  justify-content: center; gap: 8px;
+  width: 100%; padding: 10px; font-size: 0.9rem;
+}
+.btn.google:hover { background: #f7f7f7; }
+
+.btn.full-width { width: 100%; justify-content: center; padding: 10px; font-size: 0.95rem; }
+
+/* ── Header user info ─────────────────────────────────────────────────────── */
+.header-user { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+.header-user .user-email {
+  font-size: 0.82rem; color: #666;
+  max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
 /* ── Page Editor ──────────────────────────────────────────────────────────── */
 .editor-root {
   position: fixed; inset: 0; z-index: 100;

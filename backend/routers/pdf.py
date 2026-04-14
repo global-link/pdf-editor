@@ -1,18 +1,25 @@
 """FastAPI routes for PDF operations."""
 
-from fastapi import APIRouter, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel
 
+from middleware.auth import get_current_user
 from services import pdf_ops
 
 router = APIRouter(prefix="/api/pdf", tags=["pdf"])
+
+# Shorthand dependency for protected routes
+_auth = Depends(get_current_user)
 
 
 # ── Upload ─────────────────────────────────────────────────────────────────────
 
 @router.post("/upload")
-async def upload_pdf(file: UploadFile = File(...)):
+async def upload_pdf(
+    file: UploadFile = File(...),
+    _user: dict = _auth,
+):
     if file.content_type != "application/pdf":
         raise HTTPException(400, "Only PDF files are accepted")
     data = await file.read()
@@ -21,7 +28,7 @@ async def upload_pdf(file: UploadFile = File(...)):
     return {"file_id": file_id, "page_count": count, "filename": file.filename}
 
 
-# ── Preview ────────────────────────────────────────────────────────────────────
+# ── Preview (public – used as <img src> in the browser) ───────────────────────
 
 @router.get("/preview/{file_id}/{page}")
 def get_page_preview(file_id: str, page: int):
@@ -39,7 +46,7 @@ class MergeRequest(BaseModel):
 
 
 @router.post("/merge")
-def merge(req: MergeRequest):
+def merge(req: MergeRequest, _user: dict = _auth):
     out_id = pdf_ops.merge_pdfs(req.file_ids)
     count = pdf_ops.page_count(out_id)
     return {"file_id": out_id, "page_count": count}
@@ -58,7 +65,7 @@ class SplitRequest(BaseModel):
 
 
 @router.post("/split")
-def split(req: SplitRequest):
+def split(req: SplitRequest, _user: dict = _auth):
     range_tuples = [(r.start, r.end) for r in req.ranges]
     out_ids = pdf_ops.split_pdf(req.file_id, range_tuples)
     return {"file_ids": out_ids}
@@ -72,7 +79,7 @@ class RotateRequest(BaseModel):
 
 
 @router.post("/rotate")
-def rotate(req: RotateRequest):
+def rotate(req: RotateRequest, _user: dict = _auth):
     out_id = pdf_ops.rotate_pages(req.file_id, req.rotations)
     count = pdf_ops.page_count(out_id)
     return {"file_id": out_id, "page_count": count}
@@ -86,7 +93,7 @@ class ReorderRequest(BaseModel):
 
 
 @router.post("/reorder")
-def reorder(req: ReorderRequest):
+def reorder(req: ReorderRequest, _user: dict = _auth):
     out_id = pdf_ops.reorder_pages(req.file_id, req.order)
     count = pdf_ops.page_count(out_id)
     return {"file_id": out_id, "page_count": count}
@@ -100,7 +107,7 @@ class DeleteRequest(BaseModel):
 
 
 @router.post("/delete-pages")
-def delete_pages(req: DeleteRequest):
+def delete_pages(req: DeleteRequest, _user: dict = _auth):
     out_id = pdf_ops.delete_pages(req.file_id, req.keep)
     count = pdf_ops.page_count(out_id)
     return {"file_id": out_id, "page_count": count}
@@ -116,13 +123,13 @@ class WatermarkRequest(BaseModel):
 
 
 @router.post("/watermark")
-def watermark(req: WatermarkRequest):
+def watermark(req: WatermarkRequest, _user: dict = _auth):
     out_id = pdf_ops.add_watermark(req.file_id, req.text, req.opacity, req.font_size)
     count = pdf_ops.page_count(out_id)
     return {"file_id": out_id, "page_count": count}
 
 
-# ── Download ───────────────────────────────────────────────────────────────────
+# ── Download (public – used as <a href> download link) ────────────────────────
 
 @router.get("/download/{file_id}")
 def download(file_id: str):
@@ -132,7 +139,7 @@ def download(file_id: str):
     return FileResponse(str(path), media_type="application/pdf", filename="edited.pdf")
 
 
-# ── Render without text (for editor background) ────────────────────────────────
+# ── Render without text (public – used as <img src> in editor) ────────────────
 
 @router.get("/render-notext/{file_id}/{page}")
 async def render_no_text(file_id: str, page: int, scale: float = 1.8):
@@ -150,7 +157,7 @@ async def render_no_text(file_id: str, page: int, scale: float = 1.8):
 # ── Page elements (for editor) ─────────────────────────────────────────────────
 
 @router.get("/elements/{file_id}/{page}")
-def get_elements(file_id: str, page: int):
+def get_elements(file_id: str, page: int, _user: dict = _auth):
     try:
         return pdf_ops.get_page_elements(file_id, page)
     except Exception as e:
@@ -166,7 +173,7 @@ class ApplyEditsRequest(BaseModel):
 
 
 @router.post("/apply-edits")
-def apply_edits(req: ApplyEditsRequest):
+def apply_edits(req: ApplyEditsRequest, _user: dict = _auth):
     try:
         out_id, count = pdf_ops.apply_page_edits(req.file_id, req.page_index, req.edits)
         return {"file_id": out_id, "page_count": count}

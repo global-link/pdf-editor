@@ -1,4 +1,6 @@
-const BASE = "http://localhost:8000/api/pdf";
+import { authedFetch, BASE_URL } from "./client";
+
+const BASE = `${BASE_URL}/api/pdf`;
 
 export interface UploadResult {
   file_id: string;
@@ -9,11 +11,12 @@ export interface UploadResult {
 export async function uploadPDF(file: File): Promise<UploadResult> {
   const form = new FormData();
   form.append("file", file);
-  const res = await fetch(`${BASE}/upload`, { method: "POST", body: form });
+  const res = await authedFetch(`${BASE}/upload`, { method: "POST", body: form });
   if (!res.ok) throw new Error(await res.text());
   return res.json();
 }
 
+// These three return plain URLs used as <img src> or <a href> — no auth header needed.
 export function previewURL(file_id: string, page: number) {
   return `${BASE}/preview/${file_id}/${page}`;
 }
@@ -26,7 +29,7 @@ export function downloadURL(file_id: string) {
 }
 
 export async function mergePDFs(file_ids: string[]): Promise<{ file_id: string; page_count: number }> {
-  const res = await fetch(`${BASE}/merge`, {
+  const res = await authedFetch(`${BASE}/merge`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ file_ids }),
@@ -36,7 +39,7 @@ export async function mergePDFs(file_ids: string[]): Promise<{ file_id: string; 
 }
 
 export async function reorderPages(file_id: string, order: number[]): Promise<{ file_id: string; page_count: number }> {
-  const res = await fetch(`${BASE}/reorder`, {
+  const res = await authedFetch(`${BASE}/reorder`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ file_id, order }),
@@ -46,7 +49,7 @@ export async function reorderPages(file_id: string, order: number[]): Promise<{ 
 }
 
 export async function deletePages(file_id: string, keep: number[]): Promise<{ file_id: string; page_count: number }> {
-  const res = await fetch(`${BASE}/delete-pages`, {
+  const res = await authedFetch(`${BASE}/delete-pages`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ file_id, keep }),
@@ -59,7 +62,7 @@ export async function rotatePages(
   file_id: string,
   rotations: Record<number, number>
 ): Promise<{ file_id: string; page_count: number }> {
-  const res = await fetch(`${BASE}/rotate`, {
+  const res = await authedFetch(`${BASE}/rotate`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ file_id, rotations }),
@@ -74,7 +77,7 @@ export async function addWatermark(
   opacity = 0.3,
   font_size = 48
 ): Promise<{ file_id: string; page_count: number }> {
-  const res = await fetch(`${BASE}/watermark`, {
+  const res = await authedFetch(`${BASE}/watermark`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ file_id, text, opacity, font_size }),
@@ -87,7 +90,7 @@ export async function splitPDF(
   file_id: string,
   ranges: { start: number; end: number }[]
 ): Promise<{ file_ids: string[] }> {
-  const res = await fetch(`${BASE}/split`, {
+  const res = await authedFetch(`${BASE}/split`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ file_id, ranges }),
@@ -107,7 +110,7 @@ export async function getPageElements(
   file_id: string,
   page: number
 ): Promise<{ elements: PageElement[]; pageWidth: number; pageHeight: number }> {
-  const res = await fetch(`${BASE}/elements/${file_id}/${page}`);
+  const res = await authedFetch(`${BASE}/elements/${file_id}/${page}`);
   if (!res.ok) throw new Error(await res.text());
   return res.json();
 }
@@ -117,7 +120,7 @@ export async function applyEdits(
   page_index: number,
   edits: object[]
 ): Promise<{ file_id: string; page_count: number }> {
-  const res = await fetch(`${BASE}/apply-edits`, {
+  const res = await authedFetch(`${BASE}/apply-edits`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ file_id, page_index, edits }),

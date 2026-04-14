@@ -1,6 +1,6 @@
 # PDF Editor
 
-A web-based PDF editor with a React frontend and FastAPI backend.
+A web-based PDF editor with a React frontend and FastAPI backend, with Supabase authentication.
 
 ## Features
 
@@ -14,6 +14,7 @@ A web-based PDF editor with a React frontend and FastAPI backend.
 - Add watermarks
 - Edit page content (text elements)
 - Download the edited PDF
+- User authentication (email/password + Google OAuth via Supabase)
 
 ## Tech Stack
 
@@ -25,6 +26,8 @@ A web-based PDF editor with a React frontend and FastAPI backend.
 | Vite | Build tool and dev server |
 | PDF.js | In-browser PDF rendering |
 | dnd-kit | Drag-and-drop page reordering |
+| Supabase JS | Auth client (OIDC-abstracted) |
+| React Router | Client-side routing |
 
 ### Backend
 | Technology | Purpose |
@@ -36,6 +39,8 @@ A web-based PDF editor with a React frontend and FastAPI backend.
 | ReportLab | Watermark generation |
 | Pillow | Image processing |
 | Uvicorn | ASGI server |
+| PyJWT | JWT verification (HS256 + RS256/JWKS) |
+| pydantic-settings | Environment-based config |
 
 ## Architecture
 
@@ -46,11 +51,16 @@ A web-based PDF editor with a React frontend and FastAPI backend.
 │  ┌──────────────────────────────────────────────┐   │
 │  │              React Frontend                  │   │
 │  │                                              │   │
-│  │  PDFUploader → PageGrid → PageThumbnail      │   │
+│  │  AuthProvider (Supabase / OIDC)              │   │
+│  │    ↓                                        │   │
+│  │  LoginPage / SignupPage                      │   │
+│  │    ↓ (authenticated)                        │   │
+│  │  EditorShell                                 │   │
+│  │    PDFUploader → PageGrid → PageThumbnail    │   │
 │  │                 ↓                            │   │
 │  │             PageEditor  ←→  Toolbar          │   │
 │  │                                              │   │
-│  │         api/pdf.ts (fetch calls)             │   │
+│  │  api/client.ts (authedFetch + Bearer JWT)    │   │
 │  └──────────────────┬───────────────────────────┘   │
 └─────────────────────┼───────────────────────────────┘
                       │ HTTP (localhost:5173 → :8000)
@@ -58,7 +68,11 @@ A web-based PDF editor with a React frontend and FastAPI backend.
 │              FastAPI Backend                        │
 │                                                     │
 │  ┌──────────────────▼───────────────────────────┐   │
-│  │          routers/pdf.py (REST API)            │   │
+│  │     middleware/auth.py (JWT verification)     │   │
+│  └──────────────────┬───────────────────────────┘   │
+│                     │                               │
+│  ┌──────────────────▼───────────────────────────┐   │
+│  │  routers/pdf.py + routers/auth.py (REST API)  │   │
 │  └──────────────────┬───────────────────────────┘   │
 │                     │                               │
 │  ┌──────────────────▼───────────────────────────┐   │
@@ -71,15 +85,24 @@ A web-based PDF editor with a React frontend and FastAPI backend.
 │                     │                               │
 │              backend/tmp/  (temp PDF files)         │
 └─────────────────────────────────────────────────────┘
+                      │ JWKS key fetch
+              ┌───────▼────────┐
+              │  Supabase Auth │
+              │ (or any OIDC   │
+              │  provider)     │
+              └────────────────┘
 ```
 
 ### Data Flow
 
-1. User uploads a PDF → backend saves it to `backend/tmp/` and returns a `file_id`
-2. Frontend fetches page thumbnails using the `file_id`
-3. User performs operations (rotate, merge, edit, etc.) → frontend calls the relevant API endpoint
-4. Backend processes the PDF and returns a new `file_id` for the result
-5. User downloads the final PDF via the `/download/{file_id}` endpoint
+1. User signs in via Supabase → receives a JWT access token
+2. Frontend attaches the token as `Authorization: Bearer <token>` on every API request
+3. Backend verifies the JWT against Supabase's JWKS endpoint
+4. User uploads a PDF → backend saves it to `backend/tmp/` and returns a `file_id`
+5. Frontend fetches page thumbnails using the `file_id`
+6. User performs operations (rotate, merge, edit, etc.) → frontend calls the relevant API endpoint
+7. Backend processes the PDF and returns a new `file_id` for the result
+8. User downloads the final PDF via the `/download/{file_id}` endpoint
 
 ## Getting Started
 
@@ -87,6 +110,7 @@ A web-based PDF editor with a React frontend and FastAPI backend.
 
 - Python 3.10+
 - Node.js 18+
+- A [Supabase](https://supabase.com) project (free tier is fine)
 - [Poppler](https://poppler.freedesktop.org/) (required by `pdf2image`)
   - macOS: `brew install poppler`
   - Ubuntu: `apt install poppler-utils`
@@ -115,6 +139,35 @@ A web-based PDF editor with a React frontend and FastAPI backend.
    cd frontend && npm install && cd ..
    ```
 
+### Configuration
+
+**Backend** — copy and fill in `.env`:
+```bash
+cp .env.example .env
+```
+
+```dotenv
+# For Supabase with ECC/RS256 signing keys (default for new projects):
+OIDC_JWKS_URI=https://<project-ref>.supabase.co/auth/v1/.well-known/jwks.json
+OIDC_ISSUER=https://<project-ref>.supabase.co/auth/v1
+OIDC_AUDIENCE=authenticated
+
+# For older Supabase projects using HS256, use this instead:
+# OIDC_SECRET=<jwt-secret-from-supabase-dashboard>
+```
+
+**Frontend** — copy and fill in `frontend/.env`:
+```bash
+cp frontend/.env.example frontend/.env
+```
+
+```dotenv
+VITE_SUPABASE_URL=https://<project-ref>.supabase.co
+VITE_SUPABASE_ANON_KEY=<publishable-key-from-supabase-dashboard>
+```
+
+Get these values from **Supabase dashboard → Project Settings → API**.
+
 ### Running the App
 
 ```bash
@@ -124,6 +177,31 @@ A web-based PDF editor with a React frontend and FastAPI backend.
 This starts both the backend (port 8000) and frontend (port 5173).
 
 Open [http://localhost:5173](http://localhost:5173) in your browser.
+
+## API
+
+All endpoints except image/download URLs require a valid `Authorization: Bearer <token>` header.
+
+### Auth
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| GET | `/api/auth/me` | Required | Returns current user identity |
+
+### PDF
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| POST | `/api/pdf/upload` | Required | Upload a PDF |
+| GET | `/api/pdf/preview/{file_id}/{page}` | Public | Get page thumbnail |
+| POST | `/api/pdf/merge` | Required | Merge multiple PDFs |
+| POST | `/api/pdf/split` | Required | Split PDF into ranges |
+| POST | `/api/pdf/rotate` | Required | Rotate pages |
+| POST | `/api/pdf/reorder` | Required | Reorder pages |
+| POST | `/api/pdf/delete-pages` | Required | Delete pages |
+| POST | `/api/pdf/watermark` | Required | Add a watermark |
+| GET | `/api/pdf/elements/{file_id}/{page}` | Required | Get page text elements |
+| POST | `/api/pdf/apply-edits` | Required | Apply in-page edits |
+| GET | `/api/pdf/render-notext/{file_id}/{page}` | Public | Render page without text (editor background) |
+| GET | `/api/pdf/download/{file_id}` | Public | Download the result |
 
 ## Versioning
 
@@ -139,27 +217,11 @@ git checkout v1.0.0
 
 To create a new tag:
 ```bash
-git tag -a v1.1.0 -m "Description of this version"
-git push origin v1.1.0
+git tag -a v1.2.0 -m "Description of this version"
+git push origin v1.2.0
 ```
 
 | Version | Description |
 |---------|-------------|
 | v1.0.0 | Initial release with rotated PDF support |
-
-## API
-
-The backend API is available at `http://localhost:8000/api/pdf`.
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/upload` | Upload a PDF |
-| GET | `/preview/{file_id}/{page}` | Get page thumbnail |
-| POST | `/merge` | Merge multiple PDFs |
-| POST | `/split` | Split PDF into ranges |
-| POST | `/rotate` | Rotate pages |
-| POST | `/reorder` | Reorder pages |
-| POST | `/delete-pages` | Delete pages |
-| POST | `/watermark` | Add a watermark |
-| POST | `/apply-edits` | Apply in-page edits |
-| GET | `/download/{file_id}` | Download the result |
+| v1.1.0 | User authentication via Supabase (email/password + Google OAuth) |

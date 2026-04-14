@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { uploadPDF } from "../api/pdf";
 
 interface Props {
   onUploaded: (fileId: string, pageCount: number, filename: string) => void;
@@ -16,12 +17,12 @@ export function PDFUploader({ onUploaded, loading }: Props) {
       alert("Please select a PDF file.");
       return;
     }
-    const form = new FormData();
-    form.append("file", file);
-    const res = await fetch("http://localhost:8000/api/pdf/upload", { method: "POST", body: form });
-    if (!res.ok) { alert("Upload failed"); return; }
-    const data = await res.json();
-    onUploaded(data.file_id, data.page_count, data.filename);
+    try {
+      const data = await uploadPDF(file);
+      onUploaded(data.file_id, data.page_count, data.filename);
+    } catch {
+      alert("Upload failed");
+    }
   };
 
   return (
