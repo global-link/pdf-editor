@@ -6,10 +6,13 @@ import {
   type ReactNode,
 } from "react";
 import { oidcClient, type Session } from "../auth/oidcClient";
+import { getProfile, type Profile } from "../api/auth";
 
 interface AuthContextValue {
   session: Session | null;
+  profile: Profile | null;
   loading: boolean;
+  refreshProfile(): Promise<void>;
   signIn(email: string, password: string): Promise<void>;
   signInWithGoogle(): Promise<void>;
   signUp(email: string, password: string): Promise<{ needsConfirmation: boolean }>;
@@ -20,19 +23,35 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
+  const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const fetchProfile = async () => {
+    try {
+      const p = await getProfile();
+      setProfile(p);
+    } catch {
+      setProfile(null);
+    }
+  };
+
   useEffect(() => {
-    // Hydrate from existing session on mount
-    oidcClient.getSession().then((s) => {
+    oidcClient.getSession().then(async (s) => {
       setSession(s);
+      if (s) await fetchProfile();
       setLoading(false);
     });
-    // Keep in sync with Supabase auth state changes (login, logout, token refresh)
-    const unsubscribe = oidcClient.onAuthStateChange((s) => {
+
+    const unsubscribe = oidcClient.onAuthStateChange(async (s) => {
       setSession(s);
+      if (s) {
+        await fetchProfile();
+      } else {
+        setProfile(null);
+      }
       setLoading(false);
     });
+
     return unsubscribe;
   }, []);
 
@@ -40,7 +59,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     <AuthContext.Provider
       value={{
         session,
+        profile,
         loading,
+        refreshProfile: fetchProfile,
         signIn: (email, password) => oidcClient.signInWithPassword(email, password),
         signInWithGoogle: () => oidcClient.signInWithOAuth("google"),
         signUp: (email, password) => oidcClient.signUp(email, password),
