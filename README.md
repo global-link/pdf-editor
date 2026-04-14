@@ -17,8 +17,69 @@ A web-based PDF editor with a React frontend and FastAPI backend.
 
 ## Tech Stack
 
-**Frontend:** React, TypeScript, Vite  
-**Backend:** FastAPI, Python
+### Frontend
+| Technology | Purpose |
+|------------|---------|
+| React 19 | UI framework |
+| TypeScript | Type-safe JavaScript |
+| Vite | Build tool and dev server |
+| PDF.js | In-browser PDF rendering |
+| dnd-kit | Drag-and-drop page reordering |
+
+### Backend
+| Technology | Purpose |
+|------------|---------|
+| FastAPI | REST API framework |
+| PyMuPDF (fitz) | Page rendering, text extraction, drawing |
+| pypdf | PDF read/write, merge, split, rotate |
+| pdfplumber | PDF content inspection |
+| ReportLab | Watermark generation |
+| Pillow | Image processing |
+| Uvicorn | ASGI server |
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────┐
+│                     Browser                         │
+│                                                     │
+│  ┌──────────────────────────────────────────────┐   │
+│  │              React Frontend                  │   │
+│  │                                              │   │
+│  │  PDFUploader → PageGrid → PageThumbnail      │   │
+│  │                 ↓                            │   │
+│  │             PageEditor  ←→  Toolbar          │   │
+│  │                                              │   │
+│  │         api/pdf.ts (fetch calls)             │   │
+│  └──────────────────┬───────────────────────────┘   │
+└─────────────────────┼───────────────────────────────┘
+                      │ HTTP (localhost:5173 → :8000)
+┌─────────────────────┼───────────────────────────────┐
+│              FastAPI Backend                        │
+│                                                     │
+│  ┌──────────────────▼───────────────────────────┐   │
+│  │          routers/pdf.py (REST API)            │   │
+│  └──────────────────┬───────────────────────────┘   │
+│                     │                               │
+│  ┌──────────────────▼───────────────────────────┐   │
+│  │        services/pdf_ops.py (core logic)       │   │
+│  │                                               │   │
+│  │  PyMuPDF ── render, edit, redact, draw        │   │
+│  │  pypdf   ── merge, split, rotate, reorder     │   │
+│  │  ReportLab── watermark generation             │   │
+│  └──────────────────┬───────────────────────────┘   │
+│                     │                               │
+│              backend/tmp/  (temp PDF files)         │
+└─────────────────────────────────────────────────────┘
+```
+
+### Data Flow
+
+1. User uploads a PDF → backend saves it to `backend/tmp/` and returns a `file_id`
+2. Frontend fetches page thumbnails using the `file_id`
+3. User performs operations (rotate, merge, edit, etc.) → frontend calls the relevant API endpoint
+4. Backend processes the PDF and returns a new `file_id` for the result
+5. User downloads the final PDF via the `/download/{file_id}` endpoint
 
 ## Getting Started
 
